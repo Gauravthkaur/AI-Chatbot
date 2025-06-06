@@ -1,0 +1,475 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Modern Chat Animations */
+@keyframes chatWindowEnter {
+  0% {
+    opacity: 0;
+    transform: translate(20px, 20px) scale(0.95);
+    filter: blur(2px);
+  }
+  60% {
+    transform: translate(0, 0) scale(1.02);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes chatWindowExit {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(20px, 20px) scale(0.95);
+    filter: blur(2px);
+  }
+}
+
+@keyframes messageBubbleIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typingIndicator {
+  0%, 100% { 
+    transform: translateY(0); 
+    opacity: 0.5;
+  }
+  50% { 
+    transform: translateY(-4px); 
+    opacity: 1;
+  }
+}
+
+@keyframes buttonPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+}
+
+@keyframes subtleBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes fadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Utility Classes */
+.chat-window-enter {
+  animation: chatWindowEnter 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transform-origin: bottom right;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.chat-window-exit {
+  animation: chatWindowExit 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  transform-origin: bottom right;
+}
+
+.message-bubble-in {
+  opacity: 0;
+  animation: messageBubbleIn 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.typing-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background-color: rgba(124, 58, 237, 0.8);
+  animation: typingIndicator 1s infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.button-pulse {
+  animation: buttonPulse 2s infinite;
+}
+
+.button-hover {
+  transition: transform 200ms ease;
+}
+
+.button-hover:hover {
+  transform: scale(1.05);
+}
+
+.subtle-bounce {
+  animation: subtleBounce 2s infinite;
+}
+
+.fade-up {
+  animation: fadeUp 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.input-focus-ring {
+  position: relative;
+  isolation: isolate;
+}
+
+.input-focus-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #7C3AED, #9061E8, #7C3AED);
+  background-size: 200% 100%;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -2;
+}
+
+.input-focus-ring:focus-within::before {
+  opacity: 0.25;
+  animation: shimmer 3s ease infinite;
+  inset: -4px;
+}
+
+.input-focus-ring:hover::before {
+  opacity: 0.15;
+}
+
+/* Existing animations */
+.delay-0 {
+  animation-delay: 0ms;
+}
+
+.delay-100 {
+  animation-delay: 100ms;
+}
+
+.delay-150 {
+  animation-delay: 150ms;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
+
+.delay-400 {
+  animation-delay: 400ms;
+}
+
+/* Message delay classes */
+.message-delay-0 { animation-delay: 0ms; }
+.message-delay-1 { animation-delay: 100ms; }
+.message-delay-2 { animation-delay: 200ms; }
+.message-delay-3 { animation-delay: 300ms; }
+.message-delay-4 { animation-delay: 400ms; }
+.message-delay-5 { animation-delay: 500ms; }
+
+/* Chat widget animations */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+  60% {
+    transform: scale(1.02) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes popOut {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+}
+
+@keyframes messageIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes buttonPop {
+  0% {
+    transform: scale(0.95);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-window-enter {
+  animation: popIn 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: bottom right;
+}
+
+.chat-window-exit {
+  animation: popOut 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: bottom right;
+}
+
+.message-in {
+  animation: messageIn 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.message-in-1 {
+  animation: messageIn 300ms cubic-bezier(0.16, 1, 0.3, 1) 100ms forwards;
+}
+
+.message-in-2 {
+  animation: messageIn 300ms cubic-bezier(0.16, 1, 0.3, 1) 200ms forwards;
+}
+
+.message-in-3 {
+  animation: messageIn 300ms cubic-bezier(0.16, 1, 0.3, 1) 300ms forwards;
+}
+
+.message-in-4 {
+  animation: messageIn 300ms cubic-bezier(0.16, 1, 0.3, 1) 400ms forwards;
+}
+
+.input-slide-up {
+  animation: slideUp 400ms cubic-bezier(0.16, 1, 0.3, 1) 400ms forwards;
+}
+
+.button-pop {
+  animation: buttonPop 400ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.icon-spin {
+  animation: spin 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .chat-window-enter {
+    animation-duration: 350ms;
+  }
+  
+  .chat-window-exit {
+    animation-duration: 250ms;
+  }
+  
+  .message-in {
+    animation-duration: 250ms;
+  }
+}
+
+/* Custom scrollbar for chat window */
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.2);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.4);
+}
+
+.chat-text {
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+/* Message formatting styles */
+.message-content {
+  transition: all 0.2s ease;
+}
+
+.message-content:hover {
+  transform: translateY(-1px);
+}
+
+.message-content pre {
+  margin: 0.75rem 0;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.message-content pre::-webkit-scrollbar {
+  height: 4px;
+}
+
+.message-content pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-content pre::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.2);
+  border-radius: 4px;
+}
+
+.message-content pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.4);
+}
+
+.message-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.message-content strong {
+  font-weight: 600;
+}
+
+.message-content ul {
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message-content h1, 
+.message-content h2, 
+.message-content h3 {
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  line-height: 1.3;
+}
+
+.message-content h1 {
+  font-size: 1.25rem;
+}
+
+.message-content h2 {
+  font-size: 1.15rem;
+}
+
+.message-content h3 {
+  font-size: 1.05rem;
+}
+
+.message-content p {
+  margin: 0.5rem 0;
+}
+
+.message-content a {
+  color: #7C3AED;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.dark .message-content a {
+  color: #9061E8;
+}
