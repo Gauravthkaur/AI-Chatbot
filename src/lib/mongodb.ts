@@ -1,13 +1,15 @@
 import { MongoClient, ServerApiVersion, MongoClientOptions } from 'mongodb';
 
+// Don't validate during build
+const isBuildPhase = typeof process !== 'undefined' && 
+  (process.env.NEXT_PHASE === 'phase-production-build' || 
+   process.env.NEXT_PHASE === 'phase-export');
+
 const uri = process.env.MONGODB_URI;
 
-if (!uri) {
-  console.error('MongoDB URI is not defined in environment variables');
-  // Don't throw error during build time for static pages
-  if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PHASE === 'phase-production-build') {
-    console.warn('MongoDB URI is missing. Some features may not work correctly.');
-  }
+// Only log in non-build environments
+if (!uri && !isBuildPhase) {
+  console.warn('MongoDB URI is not defined in environment variables');
 }
 
 const options: MongoClientOptions = {
@@ -18,45 +20,53 @@ const options: MongoClientOptions = {
   }
 };
 
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
+let client: MongoClient | null = null;
+let clientPromise: Promise<MongoClient | null>;
 
-if (!uri) {
-  // In case URI is not available, create a dummy client that will throw when used
-  clientPromise = Promise.reject(new Error('MongoDB URI is not configured'));
-} else if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable so the value is preserved across module reloads
+// During build, return a resolved promise with null
+if (isBuildPhase) {
+  clientPromise = Promise.resolve(null);
+} 
+// In development, use a global variable to preserve the connection
+else if (process.env.NODE_ENV === 'development') {
   const globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>;
+    _mongoClientPromise?: Promise<MongoClient | null>;
   };
 
   if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri, options);
-    globalWithMongo._mongoClientPromise = client.connect()
-      .then(connectedClient => {
-        console.log('MongoDB connected successfully');
-        return connectedClient;
-      })
-      .catch(error => {
-        console.error('MongoDB connection error:', error);
-        throw error;
-      });
+    if (uri) {
+      client = new MongoClient(uri, options);
+      globalWithMongo._mongoClientPromise = client.connect()
+        .then(connectedClient => {
+          console.log('MongoDB connected successfully in development');
+          return connectedClient;
+        })
+        .catch(error => {
+          console.error('MongoDB connection error in development:', error);
+          return null;
+        });
+    } else {
+      globalWithMongo._mongoClientPromise = Promise.resolve(null);
+    }
   }
-  clientPromise = globalWithMongo._mongoClientPromise!;
-} else {
-  // In production mode, don't use a global variable
-  client = new MongoClient(uri!, options);
+  clientPromise = globalWithMongo._mongoClientPromise;
+} 
+// In production
+else if (uri) {
+  client = new MongoClient(uri, options);
   clientPromise = client.connect()
     .then(connectedClient => {
       console.log('MongoDB connected successfully in production');
       return connectedClient;
     })
     .catch(error => {
-      console.error('MongoDB production connection error:', error);
-      throw error;
+      console.error('MongoDB connection error in production:', error);
+      return null;
     });
+} else {
+  clientPromise = Promise.resolve(null);
 }
 
-// Export a module-scoped MongoClient promise. By doing this in a
-// separate module, the client can be shared across functions.
+// Export a module-scoped MongoClient promise.
+// This allows the client to be shared across functions.
 export default clientPromise;

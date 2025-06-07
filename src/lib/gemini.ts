@@ -1,34 +1,79 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
-// Check for API key
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  console.error('GEMINI_API_KEY is not set in environment variables');
-  throw new Error('API key not configured. Please check your environment variables.');
+// Don't validate during build
+const isBuildPhase = typeof process !== 'undefined' && 
+  (process.env.NEXT_PHASE === 'phase-production-build' || 
+   process.env.NEXT_PHASE === 'phase-export');
+
+// Only log in non-build environments
+if (!process.env.GEMINI_API_KEY && !isBuildPhase) {
+  console.warn('GEMINI_API_KEY is not set in environment variables');
 }
 
-// Initialize the Gemini API client with error handling
-let genAI: GoogleGenerativeAI;
-try {
-  genAI = new GoogleGenerativeAI(apiKey);
-} catch (error) {
-  console.error('Failed to initialize Gemini API:', error);
-  throw new Error('Failed to initialize AI service. Please check your API key.');
+// Create a dummy client during build or when API key is missing
+let genAI: GoogleGenerativeAI | null = null;
+
+if (process.env.GEMINI_API_KEY) {
+  try {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  } catch (error) {
+    console.error('Failed to initialize Gemini API:', error);
+  }
 }
 
 // System prompt to ensure professional responses
 const SYSTEM_PROMPT = `You are a friendly, helpful, and slightly witty AI assistant. Keep your responses concise and engaging. You are part of a chat application where history is saved.'
 `;
 
+// Format the response to handle markdown and code blocks
+function formatResponse(text: string): string {
+  if (!text) return '';
+  
+  // Simple markdown to HTML conversion for code blocks
+  return text
+    .replace(/```(\w*)\n([\s\S]*?)\n```/g, (match, lang, code) => {
+      return `<pre><code class="language-${lang || 'text'}">${code}</code></pre>`;
+    })
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Remove any "AI:" or "Assistant:" prefixes
+    .replace(/^(AI:|Assistant:)\s*/i, '')
+    // Ensure proper spacing after punctuation
+    .replace(/([.!?])\s*(\w)/g, '$1 $2')
+    // Fix multiple consecutive newlines
+    .replace(/\n{3,}/g, '\n\n')
+    // Ensure proper spacing around list items
+    .replace(/^(-|\*)\s*/gm, '• ')
+    // Trim any excess whitespace
+    .trim();
+}
+
+// Dummy response for when Gemini is not available
+const DUMMY_RESPONSES = [
+  "I'm having trouble connecting to the AI service. Please check your API key and try again.",
+  "I'm currently unable to process your request. Please try again later.",
+  "The AI service is temporarily unavailable. Please check your internet connection and try again.",
+  "I'm sorry, but I can't process your request right now. Please try again in a few moments."
+];
+
+function getDummyResponse(): string {
+  return DUMMY_RESPONSES[Math.floor(Math.random() * DUMMY_RESPONSES.length)];
+}
+
 export async function generateResponse(message: string): Promise<string> {
-  if (!message?.trim()) {
-    throw new Error('Message cannot be empty');
+  // Return a dummy response during build
+  if (isBuildPhase) {
+    return getDummyResponse();
+  }
+
+  // If no API key or initialization failed, return a dummy response
+  if (!genAI) {
+    console.error('Gemini API is not properly initialized');
+    return getDummyResponse();
   }
 
   try {
-    console.log('Generating response for message:', message.substring(0, 100) + (message.length > 100 ? '...' : ''));
-    
-    const model = genAI.getGenerativeModel({ 
+    // Get the generative model
+    const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash-preview-04-17',
       generationConfig: {
         maxOutputTokens: 1000,
@@ -53,7 +98,7 @@ export async function generateResponse(message: string): Promise<string> {
         },
       ],
     });
-    
+
     // Combine system prompt with user message
     const chat = model.startChat({
       history: [
@@ -67,7 +112,7 @@ export async function generateResponse(message: string): Promise<string> {
         },
       ],
     });
-    
+
     // Send the message and get the response
     const result = await chat.sendMessage(message);
     const response = await result.response;
@@ -101,18 +146,4 @@ export async function generateResponse(message: string): Promise<string> {
     
     throw new Error('Failed to generate response. Please try again later.');
   }
-}
-
-function formatResponse(text: string): string {
-  return text
-    // Remove any "AI:" or "Assistant:" prefixes
-    .replace(/^(AI:|Assistant:)\s*/i, '')
-    // Ensure proper spacing after punctuation
-    .replace(/([.!?])\s*(\w)/g, '$1 $2')
-    // Fix multiple consecutive newlines
-    .replace(/\n{3,}/g, '\n\n')
-    // Ensure proper spacing around list items
-    .replace(/^(-|\*)\s*/gm, '• ')
-    // Trim any excess whitespace
-    .trim();
 }
