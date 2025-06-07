@@ -97,16 +97,23 @@ const ChatWindow = ({ onClose }: ChatWindowProps) => {
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ message: inputValue }),
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
-
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to get response: ${response.status}`);
+      }
       
-      // Simulate natural typing delay
-      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+      // Calculate and apply natural typing delay
+      await new Promise(resolve => 
+        setTimeout(resolve, Math.min(1000, 300 + data.response.length * 0.01))
+      );
       
       const assistantMessage: Message = {
         id: Date.now().toString(),
@@ -136,12 +143,14 @@ const ChatWindow = ({ onClose }: ChatWindowProps) => {
       ref={chatWindowRef}
       className={`
         chat-window
-        fixed sm:bottom-24 sm:right-8
-        bottom-0 right-0
-        sm:w-[400px] w-full
-        sm:h-[600px] h-[100vh]
+        fixed
+        sm:bottom-6 sm:right-6
+        bottom-[5vh] right-[5vw]
+        w-[90vw] sm:w-[320px]
+        h-[80vh] sm:h-[480px]
+        max-h-[600px]
         bg-white dark:bg-gray-800
-        sm:rounded-2xl rounded-t-2xl
+        rounded-2xl sm:rounded-2xl
         overflow-hidden flex flex-col
         border border-gray-100 dark:border-gray-700
         shadow-[0_8px_30px_rgb(0,0,0,0.12)]
@@ -152,23 +161,23 @@ const ChatWindow = ({ onClose }: ChatWindowProps) => {
       `}
     >
       {/* Header */}
-      <div className="chat-header bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] text-white px-4 sm:px-6 py-4 relative">
+      <div className="chat-header bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] text-white px-3 sm:px-4 py-2.5 sm:py-3 relative sticky top-0">
         {/* Background pattern */}
-        <div className="absolute inset-0 bg-[url('/window.svg')] opacity-10 bg-repeat bg-center" />
+        <div className="absolute inset-0 bg-[url('/window.svg')] opacity-10 bg-repeat bg-center mix-blend-overlay" />
         
         {/* Content wrapper */}
         <div className="relative z-10 flex items-center justify-between">
           {/* Left side with icon and title */}
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 transform transition-transform group-hover:rotate-12" viewBox="0 0 20 20" fill="currentColor">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 transform transition-transform group-hover:rotate-12" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
                 <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
               </svg>
             </div>
             <div>
-              <h3 className="font-semibold text-base sm:text-lg tracking-tight">Chat Assistant</h3>
-              <p className="text-xs text-white/80 flex items-center">
+              <h3 className="font-semibold text-sm sm:text-base tracking-tight">Chat Assistant</h3>
+              <p className="text-[10px] sm:text-xs text-white/80 flex items-center">
                 <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 inline-block mr-2 animate-pulse" />
                 <span className="hidden sm:inline">Online • </span>Usually replies instantly
               </p>
@@ -202,7 +211,9 @@ const ChatWindow = ({ onClose }: ChatWindowProps) => {
       </div>
 
       {/* Messages */}
-      <div className="chat-messages flex-1 overflow-y-auto p-6 space-y-4">
+      <div 
+        className="chat-messages flex-1 px-4 sm:px-6 py-6 space-y-4 overflow-hidden hover:overflow-y-auto transition-[overflow] duration-300"
+      >
         {messages.map((message, index) => (
           <div
             key={message.id}
@@ -262,17 +273,17 @@ const ChatWindow = ({ onClose }: ChatWindowProps) => {
       </div>
 
       {/* Input */}
-      <div className="chat-input p-3 sm:p-4 bg-white/95 dark:bg-gray-800/95 border-t border-gray-100/50 dark:border-gray-700/50 backdrop-blur-md">
-        <form onSubmit={handleSubmit} className="flex items-end space-x-2">
+      <div className="chat-input sticky bottom-0 p-2 sm:p-3 bg-white/95 dark:bg-gray-800/95 border-t border-gray-100/50 dark:border-gray-700/50 backdrop-blur-md">
+        <form onSubmit={handleSubmit} className="flex items-end space-x-2 mx-auto max-w-[640px]">
           <div className="flex-1 relative input-focus-ring group">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#7C3AED] via-[#9061E8] to-[#7C3AED] opacity-[0.15] group-hover:opacity-[0.25] transition-opacity blur-md" />
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#7C3AED] via-[#9061E8] to-[#7C3AED] opacity-[0.15] group-hover:opacity-[0.25] transition-opacity blur-md" />
             <input
               ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Type your message..."
-              className="w-full pl-4 pr-12 py-3.5 bg-white/80 dark:bg-gray-800/80 rounded-2xl
+              className="w-full pl-3 pr-10 py-2.5 bg-white/80 dark:bg-gray-800/80 rounded-xl
                 border-2 border-transparent focus:border-[#7C3AED]/50 dark:focus:border-[#7C3AED]/50
                 text-gray-700 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400
                 text-[15px] leading-relaxed focus:outline-none transition-all duration-200
