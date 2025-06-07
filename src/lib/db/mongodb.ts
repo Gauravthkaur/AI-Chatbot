@@ -17,7 +17,15 @@ const options: MongoClientOptions = {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
+  maxPoolSize: 50, // Increased pool size
+  minPoolSize: 5,   // Keep some connections ready
+  maxIdleTimeMS: 1000 * 60 * 30, // 30 minutes
+  connectTimeoutMS: 10000, // 10 seconds
+  socketTimeoutMS: 45000, // 45 seconds
+  heartbeatFrequencyMS: 10000, // 10 seconds
+  retryWrites: true,
+  retryReads: true,
 };
 
 let client: MongoClient | null = null;

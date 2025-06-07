@@ -1,9 +1,17 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
+// Simple in-memory cache with TTL
+const responseCache = new Map<string, { response: string; timestamp: number }>();
+const CACHE_TTL = 1000 * 60 * 5; // 5 minutes cache TTL
+
 // Don't validate during build
 const isBuildPhase = typeof process !== 'undefined' && 
   (process.env.NEXT_PHASE === 'phase-production-build' || 
    process.env.NEXT_PHASE === 'phase-export');
+
+// Rate limiting
+const RATE_LIMIT = 10; // requests per minute
+const rateLimitMap = new Map<string, number[]>();
 
 // Only log in non-build environments
 if (!process.env.GEMINI_API_KEY && !isBuildPhase) {
@@ -59,10 +67,38 @@ function getDummyResponse(): string {
   return DUMMY_RESPONSES[Math.floor(Math.random() * DUMMY_RESPONSES.length)];
 }
 
-export async function generateResponse(message: string): Promise<string> {
+// Simple rate limiter
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const windowStart = now - 60000; // 1 minute window
+  
+  const requestTimestamps = rateLimitMap.get(ip) || [];
+  const recentRequests = requestTimestamps.filter(timestamp => timestamp > windowStart);
+  
+  if (recentRequests.length >= RATE_LIMIT) {
+    return false;
+  }
+  
+  rateLimitMap.set(ip, [...recentRequests, now]);
+  return true;
+}
+
+export async function generateResponse(message: string, ip?: string): Promise<string> {
   // Return a dummy response during build
   if (isBuildPhase) {
     return getDummyResponse();
+  }
+  
+  // Check rate limit if IP is provided
+  if (ip && !checkRateLimit(ip)) {
+    throw new Error('Rate limit exceeded. Please try again later.');
+  }
+  
+  // Check cache first
+  const cacheKey = message.trim().toLowerCase();
+  const cached = responseCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    return cached.response;
   }
 
   // If no API key or initialization failed, return a dummy response
@@ -124,6 +160,22 @@ export async function generateResponse(message: string): Promise<string> {
     
     // Post-process the response
     const formattedResponse = formatResponse(text);
+    
+    // Cache the response
+    responseCache.set(cacheKey, {
+      response: formattedResponse,
+      timestamp: Date.now()
+    });
+    
+    // Clean up old cache entries
+    if (responseCache.size > 1000) { // Prevent memory leaks
+      const now = Date.now();
+      for (const [key, value] of responseCache.entries()) {
+        if (now - value.timestamp > CACHE_TTL) {
+          responseCache.delete(key);
+        }
+      }
+    }
     
     return formattedResponse;
   } catch (error) {
