@@ -1,12 +1,36 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
-  env: {
-    // Expose GEMINI_API_KEY to the client side
-    NEXT_PUBLIC_GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    MONGODB_URI: process.env.MONGODB_URI
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // ✅ FIXED: Updated to current Next.js API
+  serverExternalPackages: ['mongodb'],
+  
+  // Optimize for faster responses
+  experimental: {
+    optimizePackageImports: ['@google/generative-ai'],
   },
-  // Add any other Next.js config options here
+  
+  // Reduce bundle size
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  
+  // Optimize images and assets
+  images: {
+    unoptimized: false,
+    dangerouslyAllowSVG: true,
+  },
+  
+  // Enable compression
+  compress: true,
+  poweredByHeader: false,
+  
+  // Optimize webpack
+  webpack: (config: import('webpack').Configuration, { isServer }) => {
+    if (isServer) {
+      // Optimize server-side bundles
+      config.optimization = { ...config.optimization, splitChunks: false };
+    }
+    return config;
+  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

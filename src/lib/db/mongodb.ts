@@ -1,80 +1,81 @@
 import { MongoClient, ServerApiVersion, MongoClientOptions } from 'mongodb';
 
-// Don't validate during build
-const isBuildPhase = typeof process !== 'undefined' && 
-  (process.env.NEXT_PHASE === 'phase-production-build' || 
-   process.env.NEXT_PHASE === 'phase-export');
-
+// Ensure the MongoDB URI is defined
 const uri = process.env.MONGODB_URI;
-
-// Only log in non-build environments
-if (!uri && !isBuildPhase) {
-  console.warn('MongoDB URI is not defined in environment variables');
+if (!uri) {
+  throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
 }
 
+// --- Best Practice: Define MongoClientOptions ---
+// We define options once to be reused.
 const options: MongoClientOptions = {
+  // Use the new Server API Stable version
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
   },
-  maxPoolSize: 50, // Increased pool size
-  minPoolSize: 5,   // Keep some connections ready
-  maxIdleTimeMS: 1000 * 60 * 30, // 30 minutes
-  connectTimeoutMS: 10000, // 10 seconds
-  socketTimeoutMS: 45000, // 45 seconds
-  heartbeatFrequencyMS: 10000, // 10 seconds
-  retryWrites: true,
-  retryReads: true,
+  // Set a reasonable pool size. The default is 5.
+  maxPoolSize: 10,
+  // Set a timeout for the server selection
+  serverSelectionTimeoutMS: 5000, // 5 seconds
+  // Set a timeout for socket operations
+  socketTimeoutMS: 30000, // 30 seconds
+  
+  // NOTE: The MongoDB Node.js driver automatically enables TLS/SSL 
+  // when connecting to a `mongodb+srv://` URI. Explicitly setting `tls: true`
+  // is usually not necessary. The problematic options have been removed.
 };
 
-let client: MongoClient | null = null;
-let clientPromise: Promise<MongoClient | null>;
+// --- Singleton Pattern for Database Connection ---
+// This pattern prevents multiple connections from being opened, especially in a serverless environment.
 
-// During build, return a resolved promise with null
-if (isBuildPhase) {
-  clientPromise = Promise.resolve(null);
-} 
-// In development, use a global variable to preserve the connection
-else if (process.env.NODE_ENV === 'development') {
-  const globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient | null>;
-  };
+// In development, we use a global variable to preserve the client
+// across module reloads caused by HMR (Hot Module Replacement).
+// In production, the module is loaded once per server instance, so we can cache it locally.
 
-  if (!globalWithMongo._mongoClientPromise) {
-    if (uri) {
-      client = new MongoClient(uri, options);
-      globalWithMongo._mongoClientPromise = client.connect()
-        .then(connectedClient => {
-          console.log('MongoDB connected successfully in development');
-          return connectedClient;
-        })
-        .catch(error => {
-          console.error('MongoDB connection error in development:', error);
-          return null;
-        });
-    } else {
-      globalWithMongo._mongoClientPromise = Promise.resolve(null);
-    }
-  }
-  clientPromise = globalWithMongo._mongoClientPromise;
-} 
-// In production
-else if (uri) {
-  client = new MongoClient(uri, options);
-  clientPromise = client.connect()
-    .then(connectedClient => {
-      console.log('MongoDB connected successfully in production');
-      return connectedClient;
-    })
-    .catch(error => {
-      console.error('MongoDB connection error in production:', error);
-      return null;
-    });
-} else {
-  clientPromise = Promise.resolve(null);
+let client: MongoClient;
+let clientPromise: Promise<MongoClient>;
+
+// Extend the NodeJS Global type to include our cached mongo client
+declare global {
+  var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-// Export a module-scoped MongoClient promise.
-// This allows the client to be shared across functions.
+if (process.env.NODE_ENV === 'development') {
+  // In development mode, use a global variable so that the value
+  // is preserved across module reloads caused by HMR (Hot Module Replacement).
+  if (!global._mongoClientPromise) {
+    client = new MongoClient(uri, options);
+    global._mongoClientPromise = client.connect();
+  }
+  clientPromise = global._mongoClientPromise;
+} else {
+  // In production mode, it's best to not use a global variable.
+  // The module is executed once per server instance.
+  client = new MongoClient(uri, options);
+  clientPromise = client.connect();
+}
+
+/**
+ * A helper function to check if the MongoDB client is connected.
+ * It does this by pinging the 'admin' database.
+ * @returns {Promise<boolean>} - True if connected, false otherwise.
+ */
+export async function isMongoConnected(): Promise<boolean> {
+  try {
+    // Get the client from the promise
+    const mongoClient = await clientPromise;
+    // Ping the database to check for a successful connection
+    await mongoClient.db("admin").command({ ping: 1 });
+    console.log("Successfully connected to MongoDB and pinged the database.");
+    return true;
+  } catch (error) {
+    console.error("MongoDB connection check failed:", error);
+    return false;
+  }
+}
+
+// Export a module-scoped MongoClient promise. By doing this in a
+// separate module, the client can be shared across functions.
 export default clientPromise;
