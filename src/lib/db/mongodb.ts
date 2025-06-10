@@ -39,8 +39,15 @@ let clientPromise: Promise<MongoClient>;
 
 // Extend the NodeJS Global type to include our cached mongo client
 declare global {
+  // Using var here as it's required for global declaration merging
+  // This is a special case where var is needed for proper type augmentation
+  // eslint-disable-next-line no-var
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
+
+declare const global: typeof globalThis & {
+  _mongoClientPromise?: Promise<MongoClient>;
+};
 
 if (process.env.NODE_ENV === 'development') {
   // In development mode, use a global variable so that the value
