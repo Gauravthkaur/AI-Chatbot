@@ -1,35 +1,27 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ✅ FIXED: Updated to current Next.js API
-  serverExternalPackages: ['mongodb'],
-  
-  // Optimize for faster responses
+  // A good security practice to not reveal the technology stack.
+  poweredByHeader: false,
+
+  // This is a great optimization that helps reduce the bundle size for specific large libraries.
+  // It's a good idea to include both of your heavy server-side dependencies here.
   experimental: {
-    optimizePackageImports: ['@google/generative-ai'],
+    optimizePackageImports: ['@google/generative-ai', 'mongodb'],
   },
   
-  // Reduce bundle size
+  // A standard practice to remove console logs from the production build,
+  // cleaning up output and potentially improving performance slightly.
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   
-  // Optimize images and assets
   images: {
-    unoptimized: false,
+    // This is the default setting, keeping Next.js Image Optimization enabled.
+    unoptimized: false, 
+    
+    // SECURITY NOTE: This is acceptable if you only use your own trusted SVG files.
+    // Be cautious as it can be a security risk if you display user-uploaded SVGs.
     dangerouslyAllowSVG: true,
-  },
-  
-  // Enable compression
-  compress: true,
-  poweredByHeader: false,
-  
-  // Optimize webpack
-  webpack: (config: import('webpack').Configuration, { isServer }) => {
-    if (isServer) {
-      // Optimize server-side bundles
-      config.optimization = { ...config.optimization, splitChunks: false };
-    }
-    return config;
   },
 };
 
