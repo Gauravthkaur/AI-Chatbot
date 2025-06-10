@@ -212,7 +212,8 @@ const ChatWindow = ({ onClose }: ChatWindowProps) => {
 
       {/* Messages */}
       <div 
-        className="chat-messages flex-1 px-4 sm:px-6 py-6 space-y-4 overflow-hidden hover:overflow-y-auto transition-[overflow] duration-300"
+        className="chat-messages flex-1 px-4 sm:px-6 py-6 space-y-4 overflow-y-auto overscroll-contain
+          [scrollbar-width:thin] [scrollbar-color:#c7d2fe_#f3f4f6] touch-manipulation"
       >
         {messages.map((message, index) => (
           <div
