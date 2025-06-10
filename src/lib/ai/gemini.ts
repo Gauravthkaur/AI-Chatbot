@@ -1,14 +1,29 @@
 // File: lib/ai/gemini.ts
 
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
-import { kv } from '@vercel/kv'; // Import Vercel KV
+
+// --- Types ---
+type Cache = Map<string, { value: string; timeout: NodeJS.Timeout }>;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __geminiCache: Cache | undefined;
+}
 
 // --- Configuration Constants ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL_NAME = "gemini-1.5-flash-latest"; // Using the latest flash model
-const CACHE_TTL_SECONDS = 60 * 5; // 5 minutes
-const RATE_LIMIT_WINDOW_SECONDS = 60; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 15; // Max 15 requests per minute per IP
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 10; // Max requests per window
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Initialize global cache if it doesn't exist
+if (!global.__geminiCache) {
+  global.__geminiCache = new Map();
+}
+
+const cache = global.__geminiCache!;
 
 // --- Best Practice: Singleton for Gemini Client ---
 // This ensures we only initialize the client once per server instance.
@@ -46,27 +61,37 @@ export async function generateResponse(message: string, ip: string): Promise<str
     return "AI response generation is disabled during build.";
   }
 
-  // 1. Rate Limiting using Vercel KV
-  const rateLimitKey = `ratelimit:${ip}`;
-  const transaction = kv.multi();
-  transaction.zadd(rateLimitKey, { score: Date.now(), member: Date.now() });
-  transaction.zremrangebyscore(rateLimitKey, 0, Date.now() - (RATE_LIMIT_WINDOW_SECONDS * 1000));
-  transaction.zcard(rateLimitKey);
-  transaction.expire(rateLimitKey, RATE_LIMIT_WINDOW_SECONDS);
+  // 1. Simple in-memory rate limiting
+  const now = Date.now();
+  const rateLimit = rateLimitMap.get(ip);
   
-  const [_, __, requestCount] = await transaction.exec<[number, number, number, number]>();
-
-  if (requestCount > RATE_LIMIT_MAX_REQUESTS) {
-    throw new Error('Rate limit exceeded. Please try again later.');
+  if (rateLimit) {
+    if (now > rateLimit.resetTime) {
+      // Reset the counter if window has passed
+      rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    } else if (rateLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
+      throw new Error('Rate limit exceeded. Please try again later.');
+    } else {
+      // Increment the counter
+      rateLimit.count++;
+      rateLimitMap.set(ip, rateLimit);
+    }
+  } else {
+    // First request from this IP
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
   }
-
-  // 2. Caching using Vercel KV
-  const cacheKey = `cache:${message.trim().toLowerCase()}`;
-  const cachedResponse = await kv.get<string>(cacheKey);
-  if (cachedResponse) {
+  
+  // 2. Simple in-memory cache (for development only)
+  // In production, consider using a proper caching solution
+  const cacheKey = message.trim().toLowerCase();
+  
+  // Check if we have a cached response that hasn't expired
+  const cachedItem = cache.get(cacheKey);
+  if (cachedItem) {
     console.log(`Cache hit for: "${message.substring(0, 30)}..."`);
-    return cachedResponse;
+    return cachedItem.value;
   }
+  
   console.log(`Cache miss for: "${message.substring(0, 30)}..."`);
 
   try {
@@ -78,18 +103,32 @@ export async function generateResponse(message: string, ip: string): Promise<str
       generationConfig 
     });
 
-    // Use `generateContent` for single-turn requests, it's simpler than `startChat`
-    const result = await model.generateContent(message);
+    // System prompt to guide the AI's tone and style
+    const systemPrompt = `You are a friendly, helpful, and slightly witty AI assistant. Keep your responses concise and engaging. You are part of a chat application where history is saved.`;
+    
+    // Combine system prompt with user message
+    const fullPrompt = `${systemPrompt}\n\nUser: ${message}\nAssistant:`;
+    
+    // Generate content with the guided prompt
+    const result = await model.generateContent(fullPrompt);
     const response = await result.response;
-    const text = response.text();
+    let text = response.text().trim();
+    
+    // Ensure the response ends with proper punctuation
+    if (!/[.!?]$/.test(text)) {
+      text = text.replace(/[,\s]*$/, '.') + ' :)';
+    }
 
     if (!text) {
       throw new Error('Received empty response from AI model');
     }
     
-    // 4. Store in Cache
-    // We don't need to await this, it can happen in the background
-    kv.set(cacheKey, text, { ex: CACHE_TTL_SECONDS });
+    // 4. Cache the response in memory (for development only)
+    const timeout = setTimeout(() => {
+      cache.delete(cacheKey);
+    }, CACHE_TTL_MS);
+    
+    cache.set(cacheKey, { value: text, timeout });
 
     return text;
 
@@ -98,10 +137,16 @@ export async function generateResponse(message: string, ip: string): Promise<str
       message: error instanceof Error ? error.message : 'Unknown error',
     });
     
-    // Propagate a user-friendly error to be handled by the API route
-    if (error instanceof Error && (error.message.includes('API key not valid') || error.message.includes('permission denied'))) {
-      throw new Error('AI service authentication failed. Please check configuration.');
+    // User-friendly error messages
+    if (error instanceof Error) {
+      if (error.message.includes('API key not valid') || error.message.includes('permission denied')) {
+        throw new Error('Oops! Having trouble connecting to the AI service. Please try again later.');
+      } else if (error.message.includes('rate limit')) {
+        throw new Error('I\'m getting too many requests right now. Please give me a moment and try again!');
+      } else if (error.message.includes('content policy')) {
+        throw new Error('I can\'t respond to that request, but I\'m happy to help with other questions!');
+      }
     }
-    throw new Error('Failed to generate response from AI service.');
+    throw new Error('Sorry, I ran into an issue. Could you try asking again?');
   }
 }
